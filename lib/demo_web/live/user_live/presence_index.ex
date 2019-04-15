@@ -15,10 +15,8 @@ defmodule DemoWeb.UserLive.PresenceIndex do
     {:ok, fetch(socket)}
   end
 
-  def terminate(reason, socket) do
-    require IEx; IEx.pry()
-    Accounts.get_user(socket.assigns.name)
-  end
+  # def terminate(reason, socket) do
+  # end
 
   def render(assigns), do: UserView.render("index.html", assigns)
 
