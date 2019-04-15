@@ -1,4 +1,4 @@
-#Live Playground
+# Live Playground
 
 A fun place to toy around with some Phoenix Live View, based on the Live View demo repo:
 
