@@ -113,9 +113,9 @@ defmodule DemoWeb.Pong do
       tick: @tick,
       player_1_position: @player_1_position,
     }
-et
-    |> 
-    sockassign(defaults)
+
+    socket
+    |> assign(defaults)
   end
 
   def handle_event("update_settings", %{"width" => width, "tick" => tick}, socket) do
@@ -213,6 +213,9 @@ et
   defp game_loop(socket) do
     if socket.assigns.game_state == :playing do
       heading = next_heading(socket)
+      # {row_before, col_before} = coord(socket)
+      # maybe_row = row(row_before, heading)
+      # maybe_col = col(col_before, heading)
       paddle_position = next_paddle_position(heading, socket)
 
       if Ball.will_go_out_of_bounds?(socket.assigns.ball, :y)
