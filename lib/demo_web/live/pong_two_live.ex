@@ -1,9 +1,17 @@
 defmodule DemoWeb.PongTwoLive do
+
   use Phoenix.LiveView
 
+  @container_width 800
+  @container_height 400
+  @container_border 5
+
+  @board_width @container_width - 2*@container_border
+  @board_height @container_height - 2*@container_border
+
   @game_loop_tick 30 # 16 = 60fps
-  @paddle_speed 10
-  @ball_speed 10
+  @paddle_speed 8
+  @ball_speed 5
   @ball_direction %{ne: [@ball_speed, -@ball_speed],
                     se: [@ball_speed, @ball_speed],
                     sw: [-@ball_speed, @ball_speed],
@@ -12,16 +20,16 @@ defmodule DemoWeb.PongTwoLive do
   def render(assigns) do
     ~L"""
     <h2>Welcome to Ming's superior Pong game</h2>
-    <svg phx-keydown="keydown" phx-target="window" class="board" width=800 height=402 style="border: 2px solid black;">
+    <svg phx-keydown="keydown" phx-target="window" class="board" width="<%= @container_width %>" height="<%= @container_height %>" style="border: <%= @container_border %>px solid black;">
       <line x1="400" y1="30" x2="400" y2="370" stroke="black" stroke-dasharray="10, 10" stroke-width="3" />
       <text x="340" y="65" text-anchor="middle" class="score"><%= @score_1 %></text>
       <text x="460" y="65" text-anchor="middle" class="score"><%= @score_2 %></text>
 
       <circle class="ball" cx="<%= @ball_x %>" cy="<%= @ball_y %>" r="10" fill="black" />
 
-      <rect class="paddle1" x="1" y="<%= @paddle_position %>" rx="5" ry="5" width="20" height="100" fill="black"/>
+      <rect class="paddle1" x="0" y="<%= @paddle_position %>" rx="5" ry="5" width="20" height="100" fill="black"/>
 
-      <rect class="paddle2" x="775" y="<%= @paddle_position %>" rx="5" ry="5" width="20" height="100" fill="black"/>
+      <rect class="paddle2" x="770" y="<%= @paddle_position %>" rx="5" ry="5" width="20" height="100" fill="black"/>
     </svg>
     """
   end
@@ -29,7 +37,12 @@ defmodule DemoWeb.PongTwoLive do
   def mount(_session, socket) do
     if connected?(socket), do: :timer.send_interval(@game_loop_tick, self(), :tick)
 
-    {:ok, assign(socket, paddle_position: 0, ball_x: 400, ball_y: 200, ball_direction: :se, score_1: 0, score_2: 0)}
+    {:ok, assign(socket, container_width: @container_width,
+                         container_height: @container_height,
+                         container_border: @container_border,
+                         paddle_position: 0,
+                         ball_x: 750, ball_y: 350, ball_direction: :se,
+                         score_1: 0, score_2: 0)}
   end
 
   def handle_info(:tick, socket) do
@@ -49,7 +62,7 @@ defmodule DemoWeb.PongTwoLive do
     case [current_position, direction] do
       [p, :up] when p <= 0 ->
         assign(socket, paddle_position: current_position)
-      [p, :down] when p >= 300 ->
+      [p, :down] when p >= @board_height - 100 ->
         assign(socket, paddle_position: current_position)
       [position, :up] ->
         new_position = socket.assigns.paddle_position - @paddle_speed
@@ -81,51 +94,54 @@ defmodule DemoWeb.PongTwoLive do
   end
 
   defp update_score(score_1, score_2, ball_x) do
-    case ball_x do
-      x when x >= 800 ->
-        [score_1 + 1, score_2]
-      x  when x <= 0 ->
-        [score_1, score_2 + 1]
-      _ ->
-        [score_1, score_2]
+    cond do
+      hit_right_wall(ball_x) -> [score_1 + 1, score_2]
+      hit_left_wall(ball_x)  -> [score_1,     score_2 + 1]
+      true                   -> [score_1,     score_2]
     end
   end
 
-  defp update_ball_direction(ball_direction, ball_x, ball_y, paddle_position) do
-    case [ball_direction, ball_x, ball_y, paddle_position] do
+  defp update_ball_direction(ball_direction, x, y, py) do
+    cond do
+      # Hit paddle and a wall corner
+      hit_right_paddle(x, y, py) && hit_top_wall(y)    && ball_direction == :ne -> :sw
+      hit_right_paddle(x, y, py) && hit_bottom_wall(y) && ball_direction == :se -> :nw
+      hit_left_paddle(x, y, py)  && hit_top_wall(y)    && ball_direction == :nw -> :se
+      hit_left_paddle(x, y, py)  && hit_bottom_wall(y) && ball_direction == :sw -> :ne
+
+      # Hitting wall corners
+      hit_top_wall(y)    && hit_right_wall(x) && ball_direction == :ne -> :sw
+      hit_bottom_wall(y) && hit_right_wall(x) && ball_direction == :se -> :nw
+      hit_top_wall(y)    && hit_left_wall(x)  && ball_direction == :nw -> :se
+      hit_bottom_wall(y) && hit_left_wall(x)  && ball_direction == :sw -> :ne
+
+      # Hit the paddles
+      hit_right_paddle(x, y, py) && ball_direction == :ne -> :nw
+      hit_right_paddle(x, y, py) && ball_direction == :se -> :sw
+      hit_left_paddle(x, y, py)  && ball_direction == :nw -> :ne
+      hit_left_paddle(x, y, py)  && ball_direction == :sw -> :se
+
       # Hitting side walls
-      [:ne, _, y, _] when y <= 0 ->
-        :se
-      [:se, _, y, _] when y >= 400 ->
-        :ne
-      [:nw, _, y, _] when y <= 0 ->
-        :sw
-      [:sw, _, y, _] when y >= 400 ->
-        :nw
+      hit_top_wall(y)    && ball_direction == :ne -> :se
+      hit_bottom_wall(y) && ball_direction == :se -> :ne
+      hit_top_wall(y)    && ball_direction == :nw -> :sw
+      hit_bottom_wall(y) && ball_direction == :sw -> :nw
 
       # Hit the walls behind the paddles - should count score
-      [:ne, x, _, _] when x >= 800 ->
-        :nw
-      [:se, x, _, _] when x >= 800 ->
-        :sw
-      [:nw, x, _, _] when x <= 0 ->
-        :ne
-      [:sw, x, _, _] when x <= 0 ->
-        :se
+      hit_right_wall(x)  && ball_direction == :ne -> :nw
+      hit_right_wall(x)  && ball_direction == :se -> :sw
+      hit_left_wall(x) && ball_direction == :nw -> :ne
+      hit_left_wall(x) && ball_direction == :sw -> :se
 
-      # Hit the paddles - should bounce back
-      [:ne, x, y, py] when x >= 775 and (y in py..py+100) ->
-        :nw
-      [:se, x, y, py] when x >= 775 and (y in py..py+100) ->
-        :sw
-      [:nw, x, y, py] when x <= 21 and (y in py+20..py+120) ->
-        :ne
-      [:sw, x, y, py] when x <= 21 and (y in py+20..py+120) ->
-        :se
-
-      _ ->
-        ball_direction
+      true -> ball_direction
     end
   end
+
+  defp hit_top_wall(y)            do if y <= 10,                                           do: true, else: false end
+  defp hit_bottom_wall(y)         do if y >= @board_height - 10,                           do: true, else: false end
+  defp hit_left_wall(x)           do if x <= 10,                                           do: true, else: false end
+  defp hit_right_wall(x)          do if x >= @board_width - 10,                            do: true, else: false end
+  defp hit_right_paddle(x, y, py) do if x >= @board_width - 20 - 10 and (y in py..py+100), do: true, else: false end
+  defp hit_left_paddle(x, y, py)  do if x <= 20 + 10 and (y in py+20..py+120),             do: true, else: false end
 
 end
