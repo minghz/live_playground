@@ -27,6 +27,7 @@ defmodule DemoWeb.Router do
     live "/clock", ClockLive
     live "/image", ImageLive
     live "/pacman", PacmanLive
+    live "/pong_two", PongTwoLive
     live "/rainbow", RainbowLive
     live "/counter", CounterLive
     live "/top", TopLive
