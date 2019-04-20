@@ -6,86 +6,59 @@ defmodule DemoWeb.Pong do
   
   @player_1_position 200
 
-  @width 400
-  @height 400
-  @paddle_speed 10
+  @width 800
+  @height 800
+  @paddle_speed 12
   @paddle_offset 50
   @ball_size 15
-  
 
-  def render(%{game_state: :over} = assigns) do
+  def render(assigns) do
     ~L"""
-    <div class="pong-container">
-      <div class="game-over">
-        <h1>GAME OVER <small>SCORE: <%= @score %></h1>
+    <h3 class="score">SCORE:&nbsp;<%= @ball.score %></h3>
+    <%= if @game_state == :game_over do %>
+      <div class="game-over" style="position: absolute; margin:auto; top: 200px; width:<%= @width %>px; z-index: 20; color: white">
+        <h1>GAME OVER</h1>
+        <h2>SCORE: <%= @ball.score %></h2>
         <button phx-click="new_game">NEW GAME</button>
       </div>
-    </div>
-    """
-  end
-
-  def render(%{game_state: :playing} = assigns) do
-    ~L"""
-    <div class="pong-options">
-      <form phx-change="update_settings">
-        <select name="tick" onchange="this.blur()">
-          <option value="5" <%= if @tick == 50, do: "selected" %>>50</option>
-          <option value="10" <%= if @tick == 100, do: "selected" %>>100</option>
-          <option value="20" <%= if @tick == 200, do: "selected" %>>200</option>
-          <option value="50" <%= if @tick == 500, do: "selected" %>>500</option>
-        </select>
-        <input type="range" min="5" max="50" name="width" value="<%= @ball.size %>" />
-        <%= @ball.size %>px
-      </form>
-    </div>
-    <h3 class="score">SCORE:&nbsp;<%= @score %></h3>
-    <div
+    <% end %>
+    <svg
       class="pong-container"
       phx-keydown="keydown"
       phx-keyup="keyup"
       phx-target="window"
+      transform="scale(1,-1)"
+      height="<%= @height %>"
+      width="<%= @width %>"
       style="
-        position: relative;
-        height: <%= @height %>px;
-        width: <%= @width %>px;
         background-color: #222;
       "
     >
-      <div
+      <circle
         class="ball"
-        style="
-          position:absolute;
-          left: <%= @ball.position.x - @ball.size/2 %>px;
-          bottom: <%= @ball.position.y - @ball.size/2 %>px;
-          width: <%= @ball.size %>px;
-          height: <%= @ball.size %>px;
-          background-color: white;
-        "
-      ></div>
+        cx="<%= @ball.position.x %>"
+        cy="<%= @ball.position.y %>"
+        r="<%= @ball.size/2 %>"
+        fill="white"
+      />
 
-      <div
+      <rect
         class="paddle player-1"
-        style="
-          position:absolute;
-          left: <%= @player_1_position - @paddle_size/2 %>px;
-          top: <%= @height - @paddle_offset %>px;
-          width: <%= @paddle_size %>px;
-          height: 20px;
-          background-color: white;
-        "
-      ></div>
-      <div
+        x="<%= @player_1_position - @paddle_size/2 %>"
+        y="<%= @paddle_offset - 20 %>"
+        width="<%= @paddle_size %>"
+        height="20"
+        fill="white"
+      />
+      <rect
         class="paddle player-2"
-        style="
-          position:absolute;
-          left: <%= @player_1_position - @paddle_size/2 %>px;
-          bottom: <%= @height - @paddle_offset %>px;
-          width: <%= @paddle_size %>px;
-          height: 20px;
-          background-color: white;
-        "
-      ></div>
-    </div>
+        x="<%= @player_1_position - @paddle_size/2 %>"
+        y="<%= @height - @paddle_offset %>"
+        width="<%= @paddle_size %>"
+        height="20"
+        fill="white"
+      />
+    </svg>
     """
   end
 
@@ -102,8 +75,8 @@ defmodule DemoWeb.Pong do
       ball: %Ball{
         size: @ball_size,
         bounds: %{
-          x: %{min: @ball_size/2, max: @width - @ball_size/2},
-          y: %{min: @paddle_offset + @ball_size/2, max: @height - @paddle_offset - @ball_size/2},
+          x: %{min: 0, max: @width},
+          y: %{min: @paddle_offset, max: @height - @paddle_offset},
         },
       },
       paddle_size: @paddle_size,
@@ -176,11 +149,11 @@ defmodule DemoWeb.Pong do
   end
 
   defp set_heading(socket, :none), do: socket
-  defp unset_heading(socket, :none), do: socket
-
   defp set_heading(socket, heading) do
     update(socket, :pending_headings, &(Map.put(&1, heading, true)))
   end
+
+  defp unset_heading(socket, :none), do: socket
   defp unset_heading(socket, heading) do
     update(socket, :pending_headings, &(Map.put(&1, heading, false)))
   end
@@ -201,10 +174,7 @@ defmodule DemoWeb.Pong do
     end
   end
 
-
-  # defp game_loop(%{assigns: %{pending_headings: %{}} = socket), do: socket
-
-  defp paddle_hit_ball?(paddle_position, ball) do
+  defp paddle_can_hit_ball?(paddle_position, ball) do
     distance_to_ball = abs(paddle_position - Ball.get_intersect(ball))
     distance_to_ball < @paddle_size/2 + ball.size/2
   end
@@ -213,18 +183,21 @@ defmodule DemoWeb.Pong do
   defp game_loop(socket) do
     if socket.assigns.game_state == :playing do
       heading = next_heading(socket)
-      # {row_before, col_before} = coord(socket)
-      # maybe_row = row(row_before, heading)
-      # maybe_col = col(col_before, heading)
       paddle_position = next_paddle_position(heading, socket)
+      maybe_next_ball = Ball.next_position(socket.assigns.ball, [:x])
 
-      if Ball.will_go_out_of_bounds?(socket.assigns.ball, :y)
-      and not paddle_hit_ball?(paddle_position, socket.assigns.ball) do
+      if Ball.is_out_of_bounds?(maybe_next_ball, @paddle_offset) do
         socket
         |> game_over()
       else
+        can_bounce_directions = if paddle_can_hit_ball?(paddle_position, maybe_next_ball) do
+          [:x, :y]
+        else
+          [:x]
+        end
+
         socket
-        |> update(:ball, fn ball ->  Ball.next_position(ball) end)
+        |> update(:ball, fn ball ->  Ball.next_position(ball, can_bounce_directions) end)
         |> update(:heading, fn _ -> heading end)
         |> update(:player_1_position, fn _ -> paddle_position end)
       end
@@ -234,6 +207,6 @@ defmodule DemoWeb.Pong do
     end
   end
 
-  defp game_over(socket), do: assign(socket, :game_state, :over)
+  defp game_over(socket), do: assign(socket, :game_state, :game_over)
 
 end
