@@ -12,10 +12,10 @@ defmodule DemoWeb.PongTwoLive do
   @game_loop_tick 30 # 16 = 60fps
   @paddle_speed 8
   @ball_speed 5
-  @ball_direction %{ne: [@ball_speed, -@ball_speed],
-                    se: [@ball_speed, @ball_speed],
-                    sw: [-@ball_speed, @ball_speed],
-                    nw: [-@ball_speed, -@ball_speed]}
+  @ball_direction %{ne: [@ball_speed-1, -(@ball_speed+1)],
+                    se: [@ball_speed-1, @ball_speed+1],
+                    sw: [-@ball_speed+1, @ball_speed+1],
+                    nw: [-@ball_speed+1, -(@ball_speed+1)]}
 
   def render(assigns) do
     ~L"""
