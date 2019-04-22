@@ -7,6 +7,7 @@ defmodule Demo.Accounts do
   alias Demo.Repo
 
   alias Demo.Accounts.User
+  alias Demo.Accounts.UserData
 
   @topic inspect(__MODULE__)
 
@@ -48,6 +49,8 @@ defmodule Demo.Accounts do
   def get_user!(id), do: Repo.get!(User, id)
 
   def get_user_by!(things), do: Repo.get_by!(User, things)
+
+  def get_user_data!(things), do: Repo.get_by!(UserData, things)
 
   @doc """
   Creates a user.
